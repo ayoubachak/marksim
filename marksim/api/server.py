@@ -5,9 +5,11 @@ Provides REST API for running simulations on-demand.
 """
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, AsyncGenerator
 import asyncio
+import json
 import logging
 from decimal import Decimal
 
@@ -116,9 +118,9 @@ def health():
     """Health check"""
     return {"status": "ok"}
 
-@app.post("/api/simulation/run", response_model=SimulationResponse)
+@app.post("/api/simulation/run")
 async def run_simulation(request: SimulationRequest):
-    """Run batch simulation and return results"""
+    """Run batch simulation and stream results"""
     try:
         logger.info(f"Running simulation: {len(request.agents)} agent types, {request.duration_seconds}s")
         
@@ -126,18 +128,136 @@ async def run_simulation(request: SimulationRequest):
         agents = create_agents_from_config(request.agents)
         logger.info(f"Created {len(agents)} agents")
         
-        # Run simulation
-        result = await run_batch_simulation(
-            agents, 
-            Decimal(str(request.initial_price)), 
-            request.duration_seconds
+        # Stream simulation results
+        return StreamingResponse(
+            stream_simulation(
+                agents,
+                Decimal(str(request.initial_price)),
+                request.duration_seconds
+            ),
+            media_type="application/json"
         )
-        
-        return result
         
     except Exception as e:
         logger.error(f"Simulation error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+async def stream_simulation(
+    agents: List,
+    initial_price: Decimal,
+    duration_seconds: int
+) -> AsyncGenerator[str, None]:
+    """Stream simulation results as they're generated"""
+    logger.info(f"Starting streaming simulation: {len(agents)} agents, {duration_seconds}s")
+    
+    # Use batched pool if 100+ agents
+    use_batching = len(agents) >= 100
+    
+    if use_batching:
+        logger.info("Using batched pool for performance")
+        agent_pool = BatchedAgentPool(agents, enable_batching=True)
+    else:
+        agent_pool = AsyncAgentPool(agents, max_concurrency=100)
+    
+    order_book = ImmutableOrderBook()
+    matching_engine = MatchingEngine()
+    
+    trades = []
+    current_price = initial_price
+    
+    # Adaptive step size
+    total_steps = duration_seconds * 10
+    step_us = (duration_seconds * 1_000_000) // max(total_steps, 100)
+    step_us = max(10_000, min(step_us, 1_000_000))
+    
+    logger.info(f"Step size: {step_us / 1_000}ms, Duration: {duration_seconds}s, Agents: {len(agents)}")
+    
+    # Scale agent probabilities
+    agent_multiplier = max(1.0, duration_seconds / max(len(agents), 1) / 10.0)
+    
+    for agent in agents:
+        if hasattr(agent, 'trade_probability'):
+            agent.trade_probability *= min(agent_multiplier, 5.0)
+        if hasattr(agent, 'order_size'):
+            agent.order_size = max(agent.order_size, Decimal('0.1'))
+    
+    # Send initial progress
+    yield json.dumps({
+        "type": "progress",
+        "progress": 0,
+        "trades": 0,
+        "current_price": float(current_price),
+        "message": "Starting simulation..."
+    }) + "\n"
+    
+    # Simulate
+    end_time = duration_seconds * 1_000_000
+    current_time = 0
+    last_stream_time = 0
+    stream_interval = 1_000_000  # Stream every 1 second
+    
+    while current_time < end_time:
+        # Create market data
+        market_data = MarketData(
+            timestamp=current_time,
+            symbol="BTC/USD",
+            last_price=order_book.mid_price or current_price,
+            volume_24h=Decimal(0),
+            trades=[]
+        )
+        
+        # Generate orders
+        orders = await agent_pool.generate_all_orders(market_data, order_book)
+        
+        # Process orders
+        for order in orders:
+            new_book, match_result = matching_engine.match_order(
+                order, order_book, current_time
+            )
+            order_book = new_book
+            
+            if match_result.trades:
+                for trade in match_result.trades:
+                    trades.append({
+                        'trade_id': trade.trade_id,
+                        'timestamp': trade.timestamp,
+                        'price': float(trade.price),
+                        'size': float(trade.size),
+                        'buy_order_id': trade.buy_order_id,
+                        'sell_order_id': trade.sell_order_id
+                    })
+        
+        # Stream progress periodically
+        if current_time - last_stream_time >= stream_interval:
+            progress = (current_time / end_time) * 100
+            current_price_val = float(order_book.mid_price or initial_price)
+            
+            yield json.dumps({
+                "type": "progress",
+                "progress": progress,
+                "trades": len(trades),
+                "current_price": current_price_val,
+                "latest_trades": trades[-10:] if len(trades) > 10 else trades
+            }) + "\n"
+            
+            last_stream_time = current_time
+        
+        current_time += step_us
+    
+    # Send final result
+    agent_stats = [agent.get_stats() for agent in agents]
+    
+    yield json.dumps({
+        "type": "final",
+        "trades": trades,
+        "orderbook_states": [],
+        "agent_stats": agent_stats,
+        "final_price": float(order_book.mid_price or initial_price),
+        "total_trades": len(trades)
+    }) + "\n"
+    
+    logger.info(f"Simulation complete: {len(trades)} trades, Final price: ${float(order_book.mid_price or initial_price):.2f}")
+
 
 async def run_batch_simulation(agents, initial_price, duration_seconds):
     """Run batch simulation and return all data"""

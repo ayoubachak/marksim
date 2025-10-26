@@ -8,7 +8,10 @@ order book dynamics, price movements, and market microstructure.
 __version__ = "2.0.0"
 __author__ = "Market Simulation Team"
 
-from .simulation import MarketSimulation
+# Import MarketSimulation - load it on demand to avoid conflicts
+# with both simulation.py and simulation/ directory
+MarketSimulation = None  # Will be lazy-loaded when needed
+
 from .core.types import Order, Trade, MarketData, OrderType, Side, OrderStatus
 from .core.order_book import ImmutableOrderBook
 from .core.time_engine import AsyncTimeEngine

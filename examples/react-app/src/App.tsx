@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { Button } from '@/components/ui/button'
-import { Moon, Sun, Target, BarChart, Settings, FileText, LogOut } from 'lucide-react'
+import { Moon, Sun, Target, BarChart, Settings, FileText, Play } from 'lucide-react'
 import { ChartView } from '@/components/ChartView'
 import { AgentControlPanel } from '@/components/AgentControlPanel'
 import { LogsView } from '@/components/LogsView'
+import { BatchSimulationView } from '@/components/BatchSimulationView'
 import type { MarketData, OrderbookData, AgentConfig, CandleData } from '@/types'
 
 interface LogEntry {
@@ -230,8 +231,21 @@ export default function App() {
               <div className="flex items-center justify-center gap-2">
                 <FileText className="h-4 w-4" />
                 Logs
-      </div>
-        </button>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('batch')}
+              className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'batch'
+                  ? 'border-b-2 border-primary text-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2">
+                <Play className="h-4 w-4" />
+                Batch
+              </div>
+            </button>
           </div>
         </div>
       </header>
@@ -280,6 +294,7 @@ export default function App() {
           />
         )}
         {activeTab === 'logs' && <LogsView logs={logs} />}
+        {activeTab === 'batch' && <BatchSimulationView />}
       </div>
     </div>
   )

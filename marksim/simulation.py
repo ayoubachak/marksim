@@ -34,7 +34,8 @@ class MarketSimulation:
         agent_wakeup_interval_us: int = 100_000,  # 100ms
         output_stream: Optional[BoundedMarketDataStream] = None,
         candle_stream: Optional[CandleStream] = None,
-        speed_multiplier: float = 1.0
+        speed_multiplier: float = 1.0,
+        enable_batching: Optional[bool] = None
     ):
         # Core components
         self.time_engine = AsyncTimeEngine(
@@ -43,7 +44,17 @@ class MarketSimulation:
         )
         self.order_book = ImmutableOrderBook()
         self.matching_engine = MatchingEngine()
-        self.agent_pool = AsyncAgentPool(agents, max_concurrency=10)
+        # Use BatchedAgentPool for automatic optimization if enabled
+        # Default: auto-enable for 100+ agents for performance
+        if enable_batching is None:
+            enable_batching = len(agents) >= 100
+        
+        if enable_batching:
+            from .agents.batched_pool import BatchedAgentPool
+            self.agent_pool = BatchedAgentPool(agents, enable_batching=True)
+        else:
+            from .agents.base import AsyncAgentPool
+            self.agent_pool = AsyncAgentPool(agents, max_concurrency=10)
         
         # State
         self.initial_price = initial_price

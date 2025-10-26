@@ -1,0 +1,10 @@
+# Core dependencies
+sortedcontainers>=2.4.0
+websockets>=11.0.0
+
+# Visualization (for examples)
+dash>=2.14.0
+plotly>=5.15.0
+
+# Optional: Memory monitoring
+psutil>=5.9.0

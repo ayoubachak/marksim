@@ -244,8 +244,8 @@ export default function App() {
               <div className="flex items-center justify-center gap-2">
                 <Play className="h-4 w-4" />
                 Batch
-              </div>
-            </button>
+      </div>
+        </button>
           </div>
         </div>
       </header>

@@ -30,7 +30,7 @@ export function BatchSimulationView() {
   const [duration, setDuration] = useState(60)
   const [initialPrice, setInitialPrice] = useState(50000)
 
-  const addAgent = (type: 'MarketMaker' | 'NoiseTrader' | 'InformedTrader' | 'Taker') => {
+  const addAgent = (type: 'MarketMaker' | 'NoiseTrader' | 'InformedTrader' | 'Taker' | 'TrendFollower' | 'HighFrequencyTrader' | 'Whale') => {
     const defaultConfig: Record<string, any> = {}
     
     if (type === 'MarketMaker') {
@@ -49,6 +49,24 @@ export function BatchSimulationView() {
       defaultConfig.price_deviation = 0.01
       defaultConfig.min_size = 0.5
       defaultConfig.max_size = 3.0
+    } else if (type === 'TrendFollower') {
+      defaultConfig.lookback_period = 5
+      defaultConfig.trend_sensitivity = 0.02
+      defaultConfig.trade_probability = 0.15
+      defaultConfig.order_size = 2.0
+      defaultConfig.max_position = 10.0
+    } else if (type === 'HighFrequencyTrader') {
+      defaultConfig.trade_probability = 0.5
+      defaultConfig.order_size = 0.5
+      defaultConfig.price_improvement = 0.001
+      defaultConfig.max_position = 5.0
+    } else if (type === 'Whale') {
+      defaultConfig.trade_probability = 0.05
+      defaultConfig.order_size = 20.0
+      defaultConfig.min_size = 15.0
+      defaultConfig.max_size = 50.0
+      defaultConfig.market_impact_factor = 0.02
+      defaultConfig.max_position = 100.0
     }
 
     const newAgent: AgentConfigInput = {
@@ -213,6 +231,18 @@ export function BatchSimulationView() {
             <Button variant="outline" onClick={() => addAgent('Taker')} className="flex items-center gap-2">
               <Plus className="h-4 w-4" />
               Taker
+            </Button>
+            <Button variant="outline" onClick={() => addAgent('TrendFollower')} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Trend Follower
+            </Button>
+            <Button variant="outline" onClick={() => addAgent('HighFrequencyTrader')} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              HFT
+            </Button>
+            <Button variant="outline" onClick={() => addAgent('Whale')} className="flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              Whale
             </Button>
           </div>
         </CardContent>
@@ -407,6 +437,175 @@ export function BatchSimulationView() {
                     </div>
                   </div>
                 </>
+              )}
+              
+              {agent.agent_type === 'TrendFollower' && (
+                <div className="grid grid-cols-5 gap-2">
+                  <div>
+                    <Label className="text-xs">Lookback Period</Label>
+                    <Input
+                      placeholder="5"
+                      type="number"
+                      step="1"
+                      value={agent.config.lookback_period || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { lookback_period: parseInt(e.target.value) || 5 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Trend Sensitivity</Label>
+                    <Input
+                      placeholder="0.02"
+                      type="number"
+                      step="0.001"
+                      value={agent.config.trend_sensitivity || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { trend_sensitivity: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Trade Probability</Label>
+                    <Input
+                      placeholder="0.15"
+                      type="number"
+                      step="0.01"
+                      value={agent.config.trade_probability || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { trade_probability: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Order Size</Label>
+                    <Input
+                      placeholder="2.0"
+                      type="number"
+                      step="0.1"
+                      value={agent.config.order_size || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { order_size: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Max Position</Label>
+                    <Input
+                      placeholder="10.0"
+                      type="number"
+                      step="0.1"
+                      value={agent.config.max_position || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { max_position: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {agent.agent_type === 'HighFrequencyTrader' && (
+                <div className="grid grid-cols-4 gap-2">
+                  <div>
+                    <Label className="text-xs">Trade Probability</Label>
+                    <Input
+                      placeholder="0.5"
+                      type="number"
+                      step="0.01"
+                      value={agent.config.trade_probability || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { trade_probability: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Order Size</Label>
+                    <Input
+                      placeholder="0.5"
+                      type="number"
+                      step="0.1"
+                      value={agent.config.order_size || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { order_size: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Price Improvement</Label>
+                    <Input
+                      placeholder="0.001"
+                      type="number"
+                      step="0.0001"
+                      value={agent.config.price_improvement || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { price_improvement: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Max Position</Label>
+                    <Input
+                      placeholder="5.0"
+                      type="number"
+                      step="0.1"
+                      value={agent.config.max_position || ''}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { max_position: parseFloat(e.target.value) || 0 })}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {agent.agent_type === 'Whale' && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-4 gap-2">
+                    <div>
+                      <Label className="text-xs">Trade Probability</Label>
+                      <Input
+                        placeholder="0.05"
+                        type="number"
+                        step="0.01"
+                        value={agent.config.trade_probability || ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { trade_probability: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Order Size</Label>
+                      <Input
+                        placeholder="20.0"
+                        type="number"
+                        step="1"
+                        value={agent.config.order_size || ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { order_size: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Market Impact</Label>
+                      <Input
+                        placeholder="0.02"
+                        type="number"
+                        step="0.001"
+                        value={agent.config.market_impact_factor || ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { market_impact_factor: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Max Position</Label>
+                      <Input
+                        placeholder="100.0"
+                        type="number"
+                        step="1"
+                        value={agent.config.max_position || ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { max_position: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Min Size</Label>
+                      <Input
+                        placeholder="15.0"
+                        type="number"
+                        step="1"
+                        value={agent.config.min_size || ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { min_size: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Max Size</Label>
+                      <Input
+                        placeholder="50.0"
+                        type="number"
+                        step="1"
+                        value={agent.config.max_size || ''}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateAgent(agent.id, 'config', { max_size: parseFloat(e.target.value) || 0 })}
+                      />
+                    </div>
+                  </div>
+                </div>
               )}
             </Card>
           ))}

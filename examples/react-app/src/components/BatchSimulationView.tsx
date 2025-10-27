@@ -27,6 +27,8 @@ export function BatchSimulationView() {
   const [result, setResult] = useState<SimulationResult | null>(null)
   const [selectedTimeframe, setSelectedTimeframe] = useState('1m')
   const [agents, setAgents] = useState<AgentConfigInput[]>([])
+  const [duration, setDuration] = useState(60)
+  const [initialPrice, setInitialPrice] = useState(50000)
 
   const addAgent = (type: 'MarketMaker' | 'NoiseTrader' | 'InformedTrader' | 'Taker') => {
     const defaultConfig: Record<string, any> = {}
@@ -97,8 +99,8 @@ export function BatchSimulationView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agents: apiAgents,
-          duration_seconds: 60,
-          initial_price: 50000
+          duration_seconds: duration,
+          initial_price: initialPrice
         })
       })
 
@@ -410,6 +412,42 @@ export function BatchSimulationView() {
           ))}
         </div>
       )}
+
+      {/* Simulation Parameters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Simulation Parameters</CardTitle>
+          <CardDescription>Configure duration and initial price</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="duration">Duration (seconds)</Label>
+              <Input
+                id="duration"
+                type="number"
+                min="1"
+                max="3600"
+                value={duration}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setDuration(parseInt(e.target.value) || 60)}
+                placeholder="60"
+              />
+            </div>
+            <div>
+              <Label htmlFor="initial-price">Initial Price (USD)</Label>
+              <Input
+                id="initial-price"
+                type="number"
+                min="1000"
+                step="100"
+                value={initialPrice}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInitialPrice(parseFloat(e.target.value) || 50000)}
+                placeholder="50000"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Controls */}
       <Card>

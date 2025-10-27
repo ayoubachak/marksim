@@ -99,8 +99,11 @@ class StatisticalAgentSimulator:
         
         trading_count = int(np.sum(will_trade))
         
-        # Vectorized side selection (0=BUY, 1=SELL)
-        sides = np.random.randint(0, 2, size=trading_count)
+        # Vectorized side selection with adaptive balancing
+        # Slightly bias toward the side with less pressure to break up synchronized patterns
+        # Use 45-55% split instead of 50-50 to reduce visible patterns
+        buy_prob = np.random.uniform(0.45, 0.55)  # Slight variation in buy prob
+        sides = np.random.random(trading_count) < buy_prob
         
         # Vectorized size generation
         sizes = np.random.uniform(config.min_size, config.max_size, size=trading_count)
@@ -118,14 +121,19 @@ class StatisticalAgentSimulator:
             # This allows orders to sit on the book and match later
             target_price = Decimal(str(target_prices[i]))
             
+            # Add microsecond jitter to spread trades over time
+            # This prevents all agents from acting at exactly the same timestamp
+            jitter_us = np.random.randint(0, 1000)  # 0-1ms jitter
+            trade_timestamp = timestamp + jitter_us
+            
             order = Order(
                 order_id=f"{agent_id}_batch_{timestamp}_{i}",
                 agent_id=agent_id,
-                side=Side.BUY if sides[i] == 0 else Side.SELL,  # Use 0/1 from NumPy
+                side=Side.BUY if sides[i] else Side.SELL,  # Convert bool to Side
                 order_type=OrderType.LIMIT,
                 size=Decimal(str(sizes[i])),
                 price=target_price,
-                timestamp=timestamp,
+                timestamp=trade_timestamp,
                 time_in_force=TimeInForce.GTC  # Good 'til cancel - sits on book
             )
             orders.append(order)

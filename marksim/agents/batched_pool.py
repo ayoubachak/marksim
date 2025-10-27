@@ -123,8 +123,11 @@ class BatchedAgentPool:
             # Pure statistical for all
             configs = self._create_statistical_configs()
             self.statistical_pool = StatisticalAgentSimulator(configs)
-            self.individual_pool = None
-            self.specialized_agents = []
+            
+            # Still need to handle specialized agents individually
+            specialized = [a for a in self.agents if type(a).__name__ not in self._agent_types['identical']]
+            self.specialized_agents = specialized
+            self.individual_pool = AsyncAgentPool(specialized, max_concurrency=min(100, len(specialized))) if specialized else None
             self.identical_agents = self.agents
             
         else:  # hybrid_batched or hybrid_balanced
@@ -199,7 +202,16 @@ class BatchedAgentPool:
             return await self.individual_pool.generate_all_orders(market_data, order_book)
         
         elif self.strategy == 'statistical':
-            return self.statistical_pool.generate_all_orders(market_data, order_book)
+            all_orders = []
+            # Statistical for identical agents
+            if self.statistical_pool:
+                batch_orders = self.statistical_pool.generate_all_orders(market_data, order_book)
+                all_orders.extend(batch_orders)
+            # Individual for specialized agents
+            if self.individual_pool and self.specialized_agents:
+                individual_orders = await self.individual_pool.generate_all_orders(market_data, order_book)
+                all_orders.extend(individual_orders)
+            return all_orders
         
         else:  # hybrid
             all_orders = []
@@ -245,10 +257,13 @@ class BatchedAgentPool:
     
     def get_all_stats(self) -> List[dict]:
         """Get statistics for all agents"""
-        if self.strategy == 'statistical':
-            # Mock stats for statistical agents
-            stats = []
-            for config in self.statistical_pool.configs if self.statistical_pool else []:
+        stats = []
+        # Add specialized agents
+        for agent in self.specialized_agents if hasattr(self, 'specialized_agents') else []:
+            stats.append(agent.get_stats())
+        # Mock stats for statistical agents
+        if self.statistical_pool:
+            for config in self.statistical_pool.configs:
                 for i in range(config.count):
                     stats.append({
                         'agent_id': f"{config.name}_{i}",
@@ -260,15 +275,20 @@ class BatchedAgentPool:
                         'pnl': 0.0,
                         'active_orders': 0
                     })
-            return stats
-        else:
+        # Fallback to individual if no specialized
+        if not stats and hasattr(self, 'agents'):
             return [agent.get_stats() for agent in self.agents]
+        return stats
     
     def get_all_configs(self) -> List[dict]:
         """Get configuration for all agents"""
-        if self.strategy == 'statistical':
-            configs = []
-            for config in self.statistical_pool.configs if self.statistical_pool else []:
+        configs = []
+        # Add specialized agents
+        for agent in self.specialized_agents if hasattr(self, 'specialized_agents') else []:
+            configs.append(agent.get_config())
+        # Add statistical agents
+        if self.statistical_pool:
+            for config in self.statistical_pool.configs:
                 for i in range(config.count):
                     configs.append({
                         'agent_id': f"{config.name}_{i}",
@@ -278,9 +298,10 @@ class BatchedAgentPool:
                         'max_size': config.max_size,
                         'price_deviation': config.price_deviation
                     })
-            return configs
-        else:
+        # Fallback to individual if no specialized
+        if not configs and hasattr(self, 'agents'):
             return [agent.get_config() for agent in self.agents]
+        return configs
     
     # Drop-in replacement for AsyncAgentPool
     @property

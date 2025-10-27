@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 from decimal import Decimal
+import numpy as np
 
 from ..agents import (
     MarketMakerAgent, NoiseTraderAgent,
@@ -190,18 +191,35 @@ async def stream_simulation(
         "message": "Starting simulation..."
     }) + "\n"
     
+    # External shock simulation (trends/events)
+    # This adds realistic price shocks to break mean reversion
+    shock_times = []
+    shock_sizes = []
+    for i in range(max(1, duration_seconds // 10)):  # One shock every ~10 seconds
+        shock_times.append(np.random.uniform(0, duration_seconds) * 1_000_000)
+        shock_sizes.append(np.random.normal(0, 0.005))  # ±0.5% shock
+    
     # Simulate
     end_time = duration_seconds * 1_000_000
     current_time = 0
     last_stream_time = 0
     stream_interval = 1_000_000  # Stream every 1 second
+    cumulative_drift = 0  # Track cumulative price drift
     
     while current_time < end_time:
+        # Check for external shocks
+        for i, shock_time in enumerate(shock_times):
+            if current_time <= shock_time < current_time + step_us:
+                cumulative_drift += shock_sizes[i]
+        
+        # Apply drift to current price
+        drifted_price = current_price * (1 + cumulative_drift)
+        
         # Create market data
         market_data = MarketData(
             timestamp=current_time,
             symbol="BTC/USD",
-            last_price=order_book.mid_price or current_price,
+            last_price=order_book.mid_price or drifted_price,
             volume_24h=Decimal(0),
             trades=[]
         )

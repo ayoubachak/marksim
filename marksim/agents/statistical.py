@@ -108,9 +108,12 @@ class StatisticalAgentSimulator:
         # Vectorized size generation
         sizes = np.random.uniform(config.min_size, config.max_size, size=trading_count)
         
-        # Vectorized price generation
+        # Vectorized price generation with drift
+        # Add random walk drift to allow price to move away from equilibrium
+        # This simulates natural price discovery
+        drift = np.random.normal(0, 0.001, size=trading_count)  # Small random drift
         price_offsets = np.random.uniform(-config.price_deviation, config.price_deviation, size=trading_count)
-        target_prices = current_price * (1 + price_offsets)
+        target_prices = current_price * (1 + price_offsets + drift)
         
         # Convert to Order objects
         orders = []
